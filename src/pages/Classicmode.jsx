@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 export default function EnhancedClassicSnakesAndLadders() {
   // Board configuration
-  const boardSize = 10;
-  const squareSize = 60;
+  const [boardSize, setBoardSize] = useState(10);
+  const [squareSize, setSquareSize] = useState(60);
   const [currentPlayer, setCurrentPlayer] = useState(1);
   const [playerPositions, setPlayerPositions] = useState({ 1: 1, 2: 1 });
   const [diceValue, setDiceValue] = useState(null);
@@ -14,6 +14,35 @@ export default function EnhancedClassicSnakesAndLadders() {
   const [gameHistory, setGameHistory] = useState([]);
   const [isComputerPlayer, setIsComputerPlayer] = useState(false);
   const [gameMode, setGameMode] = useState('two-player'); // 'two-player' or 'computer'
+  
+  // Animation states
+  const [animatingPlayer, setAnimatingPlayer] = useState(null);
+  const [animationPath, setAnimationPath] = useState([]);
+  const [currentAnimationStep, setCurrentAnimationStep] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(false);
+  
+  // Player tokens (emojis)
+  const playerTokens = {
+    1: "🦁", // Lion for player 1
+    2: "🐯"  // Tiger for player 2
+  };
+  
+  // Token size configuration
+  const [tokenSize, setTokenSize] = useState(32);
+  
+  // Audio refs - Enhanced with voice effects
+  const rollSoundRef = useRef(null);
+  const snakeSoundRef = useRef(null);
+  const ladderSoundRef = useRef(null);
+  const winSoundRef = useRef(null);
+  const bgMusicRef = useRef(null);
+  const voiceRollRef = useRef(null);
+  const voiceSnakeRef = useRef(null);
+  const voiceLadderRef = useRef(null);
+  const voiceWinRef = useRef(null);
+  
+  // Responsive state
+  const [isMobile, setIsMobile] = useState(false);
   
   // Define snakes and ladders - traditional setup
   const snakes = {
@@ -51,44 +80,204 @@ export default function EnhancedClassicSnakesAndLadders() {
 
   // Sound effects
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [musicEnabled, setMusicEnabled] = useState(false);
+  const [voiceEffectsEnabled, setVoiceEffectsEnabled] = useState(true);
   
-  // Play sound effect if enabled
-  const playSound = (soundType) => {
-    if (!soundEnabled) return;
+  // Load audio elements
+  useEffect(() => {
+    // Create audio elements for sound effects
+    rollSoundRef.current = new Audio('/api/placeholder/400/320'); // Replace with actual dice roll sound
+    snakeSoundRef.current = new Audio('/api/placeholder/400/320'); // Replace with actual snake hiss sound
+    ladderSoundRef.current = new Audio('/api/placeholder/400/320'); // Replace with actual ladder climbing sound
+    winSoundRef.current = new Audio('/api/placeholder/400/320'); // Replace with actual victory fanfare
+    bgMusicRef.current = new Audio('/api/placeholder/400/320'); // Replace with actual background music
     
-    // Simple audio implementation
-    const sounds = {
-      roll: new Audio('/roll.mp3'),
-      snake: new Audio('/snake.mp3'),
-      ladder: new Audio('/ladder.mp3'),
-      win: new Audio('/win.mp3')
+    // Create audio elements for voice effects
+    voiceRollRef.current = new Audio('/api/placeholder/400/320'); // Replace with "Roll the dice!" voice
+    voiceSnakeRef.current = new Audio('/api/placeholder/400/320'); // Replace with "Oh no! Snake bite!" voice
+    voiceLadderRef.current = new Audio('/api/placeholder/400/320'); // Replace with "Going up!" voice
+    voiceWinRef.current = new Audio('/api/placeholder/400/320'); // Replace with "Congratulations!" voice
+    
+    // Set audio properties
+    if (bgMusicRef.current) {
+      bgMusicRef.current.loop = true;
+      bgMusicRef.current.volume = 0.5;
+    }
+    
+    // Set voice effect volumes
+    const voiceEffects = [voiceRollRef, voiceSnakeRef, voiceLadderRef, voiceWinRef];
+    voiceEffects.forEach(effect => {
+      if (effect.current) {
+        effect.current.volume = 0.8;
+      }
+    });
+    
+    return () => {
+      // Cleanup
+      const audioElements = [
+        bgMusicRef, rollSoundRef, snakeSoundRef, ladderSoundRef, winSoundRef,
+        voiceRollRef, voiceSnakeRef, voiceLadderRef, voiceWinRef
+      ];
+      
+      audioElements.forEach(audio => {
+        if (audio.current) {
+          audio.current.pause();
+          audio.current = null;
+        }
+      });
+    };
+  }, []);
+  
+  // Toggle background music
+  useEffect(() => {
+    if (bgMusicRef.current) {
+      if (musicEnabled && soundEnabled) {
+        bgMusicRef.current.play().catch(e => console.log('Music play error:', e));
+      } else {
+        bgMusicRef.current.pause();
+      }
+    }
+  }, [musicEnabled, soundEnabled]);
+  
+  // Check window size on mount and resize
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsMobile(window.innerWidth < 768);
+      
+      // Adjust square size based on screen width
+      if (window.innerWidth < 480) {
+        setSquareSize(32); // Smallest screens
+        setTokenSize(20);
+      } else if (window.innerWidth < 768) {
+        setSquareSize(38); // Mobile screens
+        setTokenSize(24);
+      } else if (window.innerWidth < 1024) {
+        setSquareSize(45); // Tablet screens
+        setTokenSize(28);
+      } else {
+        setSquareSize(60); // Desktop
+        setTokenSize(32);
+      }
     };
     
-    try {
-      const sound = sounds[soundType];
-      if (sound) {
-        sound.currentTime = 0;
-        sound.play().catch(e => console.log('Sound play error:', e));
-      }
-    } catch (error) {
-      console.log('Sound error:', error);
+    // Check on mount
+    checkScreenSize();
+    
+    // Add resize listener
+    window.addEventListener('resize', checkScreenSize);
+    
+    // Cleanup
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
+  
+  // Animation effect for player movement
+  useEffect(() => {
+    let animationTimer;
+    
+    if (isAnimating && animationPath.length > 0 && currentAnimationStep < animationPath.length) {
+      animationTimer = setTimeout(() => {
+        // Move to next step in animation path
+        setCurrentAnimationStep(prevStep => prevStep + 1);
+        
+        // If reached end of path, finish animation
+        if (currentAnimationStep === animationPath.length - 1) {
+          setIsAnimating(false);
+          
+          // Check for snake or ladder at final position
+          const finalPosition = animationPath[animationPath.length - 1];
+          
+          if (snakes[finalPosition]) {
+            // Snake bite animation
+            animatePlayerMovement(animatingPlayer, finalPosition, snakes[finalPosition], "snake");
+          } else if (ladders[finalPosition]) {
+            // Ladder climb animation
+            animatePlayerMovement(animatingPlayer, finalPosition, ladders[finalPosition], "ladder");
+          } else {
+            // Regular move completed, switch player
+            setCurrentPlayer(currentPlayer === 1 ? 2 : 1);
+          }
+        }
+      }, 200); // Animation speed
     }
-  };
-
+    
+    return () => clearTimeout(animationTimer);
+  }, [isAnimating, animationPath, currentAnimationStep, animatingPlayer]);
+  
   // Computer player logic
   useEffect(() => {
     let computerMoveTimer;
     
-    if (gameMode === 'computer' && currentPlayer === 2 && !showWinAnimation) {
+    if (gameMode === 'computer' && currentPlayer === 2 && !showWinAnimation && !isAnimating) {
       computerMoveTimer = setTimeout(() => {
         rollDice();
       }, 1500);
     }
     
     return () => clearTimeout(computerMoveTimer);
-  }, [currentPlayer, gameMode, showWinAnimation]);
+  }, [currentPlayer, gameMode, showWinAnimation, isAnimating]);
 
-  // FIXED: Get pixel coordinates for a position with flipped board (top to bottom)
+  // Enhanced sound and voice effect player
+  const playSound = (soundType) => {
+    if (!soundEnabled) return;
+    
+    try {
+      switch (soundType) {
+        case 'roll':
+          if (rollSoundRef.current) {
+            rollSoundRef.current.currentTime = 0;
+            rollSoundRef.current.play().catch(e => console.log('Sound play error:', e));
+          }
+          if (voiceEffectsEnabled && voiceRollRef.current) {
+            // Slight delay for the voice effect
+            setTimeout(() => {
+              voiceRollRef.current.currentTime = 0;
+              voiceRollRef.current.play().catch(e => console.log('Voice play error:', e));
+            }, 300);
+          }
+          break;
+        case 'snake':
+          if (snakeSoundRef.current) {
+            snakeSoundRef.current.currentTime = 0;
+            snakeSoundRef.current.play().catch(e => console.log('Sound play error:', e));
+          }
+          if (voiceEffectsEnabled && voiceSnakeRef.current) {
+            // Play voice effect right after the hiss
+            setTimeout(() => {
+              voiceSnakeRef.current.currentTime = 0;
+              voiceSnakeRef.current.play().catch(e => console.log('Voice play error:', e));
+            }, 500);
+          }
+          break;
+        case 'ladder':
+          if (ladderSoundRef.current) {
+            ladderSoundRef.current.currentTime = 0;
+            ladderSoundRef.current.play().catch(e => console.log('Sound play error:', e));
+          }
+          if (voiceEffectsEnabled && voiceLadderRef.current) {
+            voiceLadderRef.current.currentTime = 0;
+            voiceLadderRef.current.play().catch(e => console.log('Voice play error:', e));
+          }
+          break;
+        case 'win':
+          if (winSoundRef.current) {
+            winSoundRef.current.currentTime = 0;
+            winSoundRef.current.play().catch(e => console.log('Sound play error:', e));
+          }
+          if (voiceEffectsEnabled && voiceWinRef.current) {
+            // Slight delay for the voice congratulation
+            setTimeout(() => {
+              voiceWinRef.current.currentTime = 0;
+              voiceWinRef.current.play().catch(e => console.log('Voice play error:', e));
+            }, 1000);
+          }
+          break;
+      }
+    } catch (error) {
+      console.log('Sound error:', error);
+    }
+  };
+
+  // Get pixel coordinates for a position with flipped board (top to bottom)
   const getPositionCoordinates = (position) => {
     // Convert position to 0-indexed
     const positionIndex = position - 1;
@@ -112,6 +301,45 @@ export default function EnhancedClassicSnakesAndLadders() {
     const y = row * squareSize + (squareSize / 2);
     
     return { x, y };
+  };
+
+  // Generate animation path between positions (including intermediary squares)
+  const generateAnimationPath = (startPos, endPos) => {
+    const path = [];
+    
+    // Add current position
+    path.push(startPos);
+    
+    // Add each step along the way
+    for (let pos = startPos + 1; pos <= endPos; pos++) {
+      path.push(pos);
+    }
+    
+    return path;
+  };
+  
+  // Start animation for player movement
+  const animatePlayerMovement = (player, fromPos, toPos, moveType = "normal") => {
+    // Generate path through intermediate positions
+    const path = generateAnimationPath(fromPos, toPos);
+    
+    // Set animation state
+    setAnimatingPlayer(player);
+    setAnimationPath(path);
+    setCurrentAnimationStep(0);
+    setIsAnimating(true);
+    
+    // Play appropriate sound
+    if (moveType === "snake") {
+      playSound("snake");
+    } else if (moveType === "ladder") {
+      playSound("ladder");
+    }
+    
+    // Update player position immediately (visually the animation will show movement)
+    const newPositions = {...playerPositions};
+    newPositions[player] = toPos;
+    setPlayerPositions(newPositions);
   };
 
   // Define a set of alternating colors for the board
@@ -177,7 +405,7 @@ export default function EnhancedClassicSnakesAndLadders() {
           ${colorClass} ${isLastMove ? 'ring-2 ring-pink-500' : ''}`}
         style={{ width: squareSize, height: squareSize }}
       >
-        <div className="text-xl font-bold text-gray-100">
+        <div className={`${isMobile ? 'text-xs' : 'text-xl'} font-bold text-gray-100`}>
           {number}
         </div>
         
@@ -191,13 +419,25 @@ export default function EnhancedClassicSnakesAndLadders() {
     return (
       <div className="absolute inset-0 flex items-center justify-center">
         {Object.entries(playerPositions).map(([player, pos]) => {
-          if (pos === position) {
+          // Get current animated position if player is animating
+          let displayPosition = pos;
+          if (isAnimating && animatingPlayer === parseInt(player) && currentAnimationStep < animationPath.length) {
+            displayPosition = animationPath[currentAnimationStep];
+          }
+          
+          if (displayPosition === position) {
             return (
               <div 
                 key={player}
-                className={`h-6 w-6 rounded-full ${player === '1' ? 'bg-blue-500' : 'bg-red-500'} 
-                  m-1 border-2 border-white shadow-lg transform ${currentPlayer === parseInt(player) ? 'scale-110 animate-pulse' : ''}`}
-              />
+                className={`flex items-center justify-center
+                  ${currentPlayer === parseInt(player) ? 'animate-bounce' : ''}`}
+                style={{ 
+                  fontSize: tokenSize, 
+                  filter: 'drop-shadow(0 0 3px rgba(0,0,0,0.7))'
+                }}
+              >
+                {playerTokens[player]}
+              </div>
             );
           }
           return null;
@@ -237,17 +477,30 @@ export default function EnhancedClassicSnakesAndLadders() {
     if (newPosition >= 100) {
       newPosition = 100;
       setGameMessage(`Player ${currentPlayer} wins!`);
-      setPlayerPositions({...playerPositions, [currentPlayer]: newPosition});
-      setShowWinAnimation(true);
-      setLastMove(newPosition);
-      setGameHistory([...gameHistory, {...moveData, to: 100, event: "Win"}]);
-      playSound('win');
+      
+      // Start animation to move to position 100
+      animatePlayerMovement(currentPlayer, oldPosition, 100);
+      
+      // Show win animation when movement is done
+      setTimeout(() => {
+        setShowWinAnimation(true);
+        setLastMove(newPosition);
+        setGameHistory([...gameHistory, {...moveData, to: 100, event: "Win"}]);
+        playSound('win');
+      }, (100 - oldPosition) * 200); // Timing based on squares to travel
+      
       return;
     }
     
     let eventType = "Move";
     
-    // Check for snakes
+    // Set last move
+    setLastMove(newPosition);
+    
+    // Start the animation for regular movement
+    animatePlayerMovement(currentPlayer, oldPosition, newPosition);
+    
+    // Check for snakes - will be handled after animation completes
     if (snakes[newPosition]) {
       setGameMessage(`Player ${currentPlayer} got bitten by a snake! Slides down to ${snakes[newPosition]}`);
       const oldPos = newPosition;
@@ -259,10 +512,11 @@ export default function EnhancedClassicSnakesAndLadders() {
       });
       eventType = "Snake";
       setGameHistory([...gameHistory, {...moveData, event: eventType, via: oldPos}]);
-      playSound('snake');
+      
+      // Snake movement will be triggered by animation completion effect
     }
     
-    // Check for ladders
+    // Check for ladders - will be handled after animation completes
     else if (ladders[newPosition]) {
       let newPos = ladders[newPosition];
       setGameMessage(`Player ${currentPlayer} climbed a ladder! Jumps up to ${newPos}`);
@@ -277,24 +531,22 @@ export default function EnhancedClassicSnakesAndLadders() {
       
       eventType = "Ladder";
       setGameHistory([...gameHistory, {...moveData, event: eventType, via: oldPos}]);
-      playSound('ladder');
+      
+      // Ladder movement will be triggered by animation completion effect
     }
     
     else {
       setGameMessage(`Player ${currentPlayer} moved to ${newPosition}`);
       setStats({...stats, rolls: stats.rolls + 1});
       setGameHistory([...gameHistory, {...moveData, event: "Move"}]);
+      
+      // Player switch will happen after normal animation completes
     }
-    
-    // Update position and switch players
-    setPlayerPositions({...playerPositions, [currentPlayer]: newPosition});
-    setCurrentPlayer(currentPlayer === 1 ? 2 : 1);
-    setLastMove(newPosition);
   };
 
   // Handle dice roll
   const rollDice = () => {
-    if (isRolling || showWinAnimation) return;
+    if (isRolling || showWinAnimation || isAnimating) return;
     animateDiceRoll();
   };
 
@@ -308,6 +560,10 @@ export default function EnhancedClassicSnakesAndLadders() {
     setShowWinAnimation(false);
     setLastMove(null);
     setGameHistory([]);
+    setIsAnimating(false);
+    setAnimationPath([]);
+    setCurrentAnimationStep(0);
+    setAnimatingPlayer(null);
     setStats({
       rolls: 0,
       snakeBites: { 1: 0, 2: 0 },
@@ -325,9 +581,22 @@ export default function EnhancedClassicSnakesAndLadders() {
   // Toggle sound effects
   const toggleSound = () => {
     setSoundEnabled(!soundEnabled);
+    if (soundEnabled && musicEnabled) {
+      setMusicEnabled(false);
+    }
+  };
+  
+  // Toggle background music
+  const toggleMusic = () => {
+    setMusicEnabled(!musicEnabled);
+  };
+  
+  // Toggle voice effects - new function
+  const toggleVoiceEffects = () => {
+    setVoiceEffectsEnabled(!voiceEffectsEnabled);
   };
 
-  // FIXED: Function to create snake path with bezier curves
+  // Function to create snake path with bezier curves
   const createSnakePath = (start, end) => {
     const startPos = getPositionCoordinates(start);
     const endPos = getPositionCoordinates(end);
@@ -358,7 +627,7 @@ export default function EnhancedClassicSnakesAndLadders() {
       const perpY = dx / distance;
       
       // Alternate the curve direction
-      const wiggleAmount = 20 * (i % 2 === 0 ? 1 : -1);
+      const wiggleAmount = (isMobile ? 12 : 20) * (i % 2 === 0 ? 1 : -1);
       
       // Control points - adjust to keep within board bounds
       const cpX1 = midX1 + perpX * wiggleAmount;
@@ -388,7 +657,7 @@ export default function EnhancedClassicSnakesAndLadders() {
     return snakeColors[snakeStart] || "#FF5555"; // Default Red
   };
 
-  // FIXED: Function to create ladder
+  // Function to create ladder
   const createLadder = (start, end) => {
     const startPos = getPositionCoordinates(start);
     const endPos = getPositionCoordinates(end);
@@ -400,7 +669,7 @@ export default function EnhancedClassicSnakesAndLadders() {
     const distance = Math.sqrt(dx * dx + dy * dy);
     
     // Ladder width - adjusted for better appearance
-    const ladderWidth = Math.min(14, distance * 0.15);
+    const ladderWidth = Math.min(isMobile ? 7 : 14, distance * 0.15);
     
     // Perpendicular offset for the two sides of the ladder
     const offsetX = Math.sin(angle) * (ladderWidth / 2);
@@ -422,7 +691,7 @@ export default function EnhancedClassicSnakesAndLadders() {
     };
     
     // Calculate rungs
-    const rungCount = Math.max(3, Math.floor(distance / 30));
+    const rungCount = Math.max(3, Math.floor(distance / (isMobile ? 40 : 30)));
     const rungs = [];
     
     for (let i = 1; i < rungCount; i++) {
@@ -440,7 +709,7 @@ export default function EnhancedClassicSnakesAndLadders() {
           x2={rungX2} 
           y2={rungY2} 
           stroke="#FFD700" 
-          strokeWidth="2"
+          strokeWidth={isMobile ? "1" : "2"}
         />
       );
     }
@@ -453,7 +722,7 @@ export default function EnhancedClassicSnakesAndLadders() {
           x2={line1.x2} 
           y2={line1.y2} 
           stroke="#FFD700" 
-          strokeWidth="3" 
+          strokeWidth={isMobile ? "2" : "3"} 
         />
         <line 
           x1={line2.x1} 
@@ -461,7 +730,7 @@ export default function EnhancedClassicSnakesAndLadders() {
           x2={line2.x2} 
           y2={line2.y2} 
           stroke="#FFD700" 
-          strokeWidth="3" 
+          strokeWidth={isMobile ? "2" : "3"} 
         />
         {rungs}
       </>
@@ -480,13 +749,13 @@ export default function EnhancedClassicSnakesAndLadders() {
     };
 
     if (!diceValue) return (
-      <div className="w-16 h-16 border-2 border-indigo-400 bg-indigo-900 rounded shadow-lg flex items-center justify-center">
+      <div className={`${isMobile ? 'w-12 h-12' : 'w-16 h-16'} border-2 border-indigo-400 bg-indigo-900 rounded shadow-lg flex items-center justify-center`}>
         <span className="text-indigo-300">Roll</span>
       </div>
     );
 
     return (
-      <div className={`w-16 h-16 grid grid-cols-3 grid-rows-3 p-2 gap-1 border-2 
+      <div className={`${isMobile ? 'w-12 h-12' : 'w-16 h-16'} grid grid-cols-3 grid-rows-3 p-2 gap-1 border-2 
         border-indigo-400 bg-indigo-900 rounded shadow-lg ${isRolling ? 'animate-spin' : ''}`}>
         {dots[diceValue].map((dot, index) => (
           <div 
@@ -499,10 +768,180 @@ export default function EnhancedClassicSnakesAndLadders() {
     );
   };
 
-  // Game settings menu
+  // Game Info for mobile view with tabs
+  const [activeTab, setActiveTab] = useState('instructions');
+
+  const renderMobileTabs = () => {
+    return (
+      <div className="w-full bg-indigo-900 rounded-t-xl p-2 flex border-b border-indigo-700">
+        <button 
+          onClick={() => setActiveTab('instructions')} 
+          className={`flex-1 py-2 px-3 rounded-t-lg text-sm font-medium ${
+             activeTab === 'instructions' ? 'bg-indigo-800 text-pink-400' : 'text-gray-300'
+          }`}
+        >
+          How to Play
+        </button>
+        <button 
+          onClick={() => setActiveTab('log')} 
+          className={`flex-1 py-2 px-3 rounded-t-lg text-sm font-medium ${
+            activeTab === 'log' ? 'bg-indigo-800 text-pink-400' : 'text-gray-300'
+          }`}
+        >
+          Game Log
+        </button>
+        <button 
+          onClick={() => setActiveTab('stats')} 
+          className={`flex-1 py-2 px-3 rounded-t-lg text-sm font-medium ${
+            activeTab === 'stats' ? 'bg-indigo-800 text-pink-400' : 'text-gray-300'
+          }`}
+        >
+          Stats
+        </button>
+      </div>
+    );
+  };
+
+  const renderMobileTabContent = () => {
+    switch(activeTab) {
+      case 'instructions':
+        return (
+          <div className="space-y-3 text-gray-300 p-3">
+            <p className="text-sm">
+              <span className="font-bold">Objective:</span> Be the first player to reach square 100!
+            </p>
+            
+            <div className="text-sm">
+              <p className="font-bold mb-1">Rules:</p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Players take turns rolling the dice</li>
+                <li>Move your piece the number of squares shown on the dice</li>
+                <li>If you land on a ladder base, climb up!</li>
+                <li>If you land on a snake head, slide down!</li>
+                <li>You must roll the exact number to reach square 100</li>
+              </ul>
+            </div>
+            
+            <div className="flex items-center space-x-2 mt-2">
+              <div className="text-xl">{playerTokens[1]}</div>
+              <div className="text-sm">Player 1</div>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <div className="text-xl">{playerTokens[2]}</div>
+              <div className="text-sm">{gameMode === 'computer' ? 'Computer' : 'Player 2'}</div>
+            </div>
+          </div>
+        );
+      case 'log':
+        return (
+          <div className="p-3">
+            <div className="max-h-32 overflow-y-auto text-sm space-y-1">
+              <p className="font-medium text-gray-300">{gameMessage}</p>
+              
+              {/* Show last 5 moves */}
+              {gameHistory.slice(-5).reverse().map((move, index) => {
+                let eventEmoji = "🎲";
+                if (move.event === "Snake") eventEmoji = "🐍";
+                if (move.event === "Ladder") eventEmoji = "🪜";
+                 if (move.event === "Win") eventEmoji = "🏆";
+                
+                const playerLabel = move.player === 2 && gameMode === 'computer' ? 'Computer' : `P${move.player}`;
+                
+                return (
+                  <div key={index} className="text-gray-400 text-xs">
+                    {eventEmoji} {playerLabel} rolled {move.dice}: 
+                    {(move.event === "Snake" || move.event === "Ladder") 
+                      ? ` ${move.from} → ${move.via} → ${move.to}`
+                      : ` ${move.from} → ${move.to}`
+                    }
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      case 'stats':
+        return (
+          <div className="p-3 space-y-3">
+            {/* Player 1 stats */}
+            <div className="bg-blue-900 bg-opacity-30 rounded-lg p-2 border border-blue-700">
+              <div className="flex items-center mb-1">
+                <div className="h-3 w-3 rounded-full bg-blue-500 border-2 border-indigo-700 mr-2"></div>
+                <h3 className="font-bold text-xs text-blue-300">Player 1</h3>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-1 text-xs">
+                <div className="flex flex-col">
+                  <div className="text-gray-400">Position:</div>
+                  <div className="font-medium text-gray-200">{playerPositions[1]}/100</div>
+                </div>
+                <div className="flex flex-col">
+                  <div className="text-gray-400">Snakes:</div>
+                  <div className="font-medium text-gray-200">{stats.snakeBites[1]}</div>
+                </div>
+                <div className="flex flex-col">
+                  <div className="text-gray-400">Ladders:</div>
+                  <div className="font-medium text-gray-200">{stats.laddersClimbed[1]}</div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Player 2 stats */}
+            <div className="bg-red-900 bg-opacity-30 rounded-lg p-2 border border-red-700">
+              <div className="flex items-center mb-1">
+                <div className="h-3 w-3 rounded-full bg-red-500 border-2 border-indigo-700 mr-2"></div>
+                <h3 className="font-bold text-xs text-red-300">{gameMode === 'computer' ? 'Computer' : 'Player 2'}</h3>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-1 text-xs">
+                <div className="flex flex-col">
+                  <div className="text-gray-400">Position:</div>
+                  <div className="font-medium text-gray-200">{playerPositions[2]}/100</div>
+                </div>
+                <div className="flex flex-col">
+                  <div className="text-gray-400">Snakes:</div>
+                  <div className="font-medium text-gray-200">{stats.snakeBites[2]}</div>
+                </div>
+                <div className="flex flex-col">
+                  <div className="text-gray-400">Ladders:</div>
+                  <div className="font-medium text-gray-200">{stats.laddersClimbed[2]}</div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Game info - compact */}
+            <div className="bg-indigo-950 rounded-lg p-2 border border-indigo-800">
+              <div className="grid grid-cols-3 gap-1 text-xs">
+                <div className="flex flex-col">
+                  <div className="text-gray-400">Total Rolls:</div>
+                  <div className="font-medium text-gray-200">{stats.rolls}</div>
+                </div>
+                <div className="flex flex-col">
+                  <div className="text-gray-400">Current:</div>
+                  <div className="font-medium text-gray-200">
+                    {currentPlayer === 2 && gameMode === 'computer' ? 'PC' : `P${currentPlayer}`}
+                  </div>
+                </div>
+                <div className="flex flex-col">
+                  <div className="text-gray-400">Mode:</div>
+                  <div className="font-medium text-gray-200">
+                    {gameMode === 'computer' ? 'vs PC' : '2P'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  // Render settings panel - for both desktop and mobile
   const renderSettings = () => {
     return (
-      <div className="w-full lg:w-1/4 p-2 mt-4">
+      <div className={`w-full ${isMobile ? 'p-2 mt-2' : 'lg:w-1/4 p-2 mt-4'}`}>
         <div className="bg-indigo-900 rounded-xl shadow-lg p-4 border border-indigo-700">
           <h2 className="text-xl font-bold mb-4 text-center text-pink-400">Game Settings</h2>
           
@@ -532,6 +971,7 @@ export default function EnhancedClassicSnakesAndLadders() {
                 </button>
               </div>
             </div>
+          
             
             <div className="flex items-center justify-between">
               <span className="text-gray-300">Sound Effects:</span>
@@ -720,9 +1160,9 @@ export default function EnhancedClassicSnakesAndLadders() {
             </div>
             
             {/* Controls underneath board */}
-            <div className="bg-indigo-900 mt-4 p-4 rounded-lg shadow-lg border border-indigo-700 flex items-center justify-center">
+            <div className="bg-indigo-900 mt-4 p-4 rounded-lg shadow-lg border border-indigo-700 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center mr-8">
-                <div className="text-lg font-medium text-gray-300 mr-3">Turn:</div>
+                <div className=" flex items-center text-lg font-medium text-gray-300 "><span className='mr-2'>Turn:</span></div>
                 <div className={`h-8 w-8 rounded-full ${currentPlayer === 1 ? 'bg-blue-500' : 'bg-red-500'} border-2 border-indigo-700 shadow-md`}></div>
                 <div className="text-lg font-medium text-gray-300 ml-2">
                   {currentPlayer === 2 && gameMode === 'computer' ? 'Computer' : `Player ${currentPlayer}`}
@@ -735,9 +1175,9 @@ export default function EnhancedClassicSnakesAndLadders() {
               
               <button 
                 onClick={rollDice}
-                disabled={isRolling || showWinAnimation || (currentPlayer === 2 && gameMode === 'computer')}
-                className={`px-6 py-2 rounded-lg font-bold shadow-md transition-all
-                  ${(isRolling || showWinAnimation || (currentPlayer === 2 && gameMode === 'computer'))
+                disabled={isRolling || showWinAnimation && (currentPlayer === 2 && gameMode === 'computer')}
+                className={`px-6 py-2 rounded-lg font-bold shadow-lg transition-all
+                  ${(isRolling || (showWinAnimation || currentPlayer === 2 && gameMode === 'computer'))
                     ? 'bg-gray-700 text-gray-500 cursor-not-allowed' 
                     : 'bg-pink-600 text-white hover:bg-pink-700'
                   }`}

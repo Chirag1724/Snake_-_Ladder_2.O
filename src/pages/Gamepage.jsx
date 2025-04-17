@@ -4,24 +4,11 @@ import Navbar from '../components/Navbar';
 
 export default function GameSetup() {
   const navigate = useNavigate();
-  const [playerCount, setPlayerCount] = useState(2);
-  const [playerNames, setPlayerNames] = useState(['', '', '', '']);
   const [selectedTheme, setSelectedTheme] = useState('classic');
 
-  const handlePlayerNameChange = (index, name) => {
-    const newPlayerNames = [...playerNames];
-    newPlayerNames[index] = name;
-    setPlayerNames(newPlayerNames);
-  };
-
-  const handlePlayerCountChange = (count) => {
-    setPlayerCount(count);
-  };
-
   const handleStartGame = () => {
-    const activePlayers = playerNames.slice(0, playerCount).map((name, index) => 
-      name || `Player ${index + 1}`
-    );
+    // Fixed player names
+    const activePlayers = ["Player 1", "Player 2"];
     
     // For twist mode, all features are automatically included
     const twistFeatures = selectedTheme === 'twist' ? {
@@ -32,7 +19,7 @@ export default function GameSetup() {
     
     // Create game state to pass to the game component
     const gameState = {
-      playerCount,
+      playerCount: 2,
       players: activePlayers,
       theme: selectedTheme,
       ...(selectedTheme === 'twist' ? twistFeatures : {})
@@ -69,8 +56,9 @@ export default function GameSetup() {
             
             <div className="flex-grow flex flex-col items-center justify-center p-4">
               <div className="relative w-full max-w-md aspect-square rounded-xl overflow-hidden border-4 border-yellow-500 shadow-2xl transition-all duration-700 hover:scale-105 animate-pulse-subtle">
+                {/* Conditionally render image based on selected theme */}
                 <img 
-                  src="./Twist mode.jpg" 
+                  src={selectedTheme === 'classic' ? "/src/assets/Classic Mode.png" : "/src/assets/Twist Mode.png"} 
                   alt="Snakes and Ladders Board" 
                   className="w-full h-full object-cover"
                 />
@@ -98,7 +86,7 @@ export default function GameSetup() {
                   <h3 className="text-2xl font-bold text-white shadow-text">
                     {selectedTheme === 'classic' ? 'Classic Mode' : 'Twist Mode'}
                   </h3>
-                  <p className ="text-yellow-300 font-medium">
+                  <p className="text-yellow-300 font-medium">
                     {selectedTheme === 'classic' 
                       ? 'Traditional fun for everyone!' 
                       : 'New challenges await you!'}
@@ -106,6 +94,7 @@ export default function GameSetup() {
                 </div>
               </div>
               
+              {/* Rules display next to the board */}
               <div className="mt-8 bg-gray-900 bg-opacity-50 p-4 rounded-lg w-full max-w-md transform transition-all duration-500 hover:bg-opacity-70">
                 <h3 className="text-lg font-medium text-yellow-400 mb-2">
                   {selectedTheme === 'classic' ? 'Classic Rules:' : 'Twist Mode Features:'}
@@ -113,17 +102,17 @@ export default function GameSetup() {
                 <ul className="text-gray-300 space-y-2 list-disc pl-5">
                   {selectedTheme === 'classic' ? (
                     <>
-                      <li>Roll the dice to move your token</li>
-                      <li>Climb ladders to advance quickly</li>
-                      <li>Avoid snakes or slide back down</li>
-                      <li>First player to reach 100 wins!</li>
+                      <li className="animate-fade-in-right delay-100">Roll the dice to move your token</li>
+                      <li className="animate-fade-in-right delay-200">Climb ladders to advance quickly</li>
+                      <li className="animate-fade-in-right delay-300">Avoid snakes or slide back down</li>
+                      <li className="animate-fade-in-right delay-400">First player to reach 100 wins!</li>
                     </>
                   ) : (
                     <>
-                      <li><span className="text-pink-400">Push Attack:</span> Send opponents backwards</li>
-                      <li><span className="text-cyan-400">Double Dice:</span> Get extra rolls on ladders</li>
-                      <li><span className="text-purple-400">Ghost Mode:</span> Pass through snakes once</li>
-                      <li>All special abilities included for maximum fun!</li>
+                      <li className="animate-fade-in-right delay-100"><span className="text-pink-400">Push Attack:</span> Send opponents backwards</li>
+                      <li className="animate-fade-in-right delay-200"><span className="text-cyan-400">Double Dice:</span> Get extra rolls on ladders</li>
+                      <li className="animate-fade-in-right delay-300"><span className="text-purple-400">Ghost Mode:</span> Pass through snakes once</li>
+                      <li className="animate-fade-in-right delay-400">All special abilities included for maximum fun!</li>
                     </>
                   )}
                 </ul>
@@ -137,47 +126,36 @@ export default function GameSetup() {
               <span className="mr-2">🧑‍🤝‍🧑</span> Player Setup
             </h2>
             
-            {/* Number of Players */}
+            {/* Fixed 2 Player Mode */}
             <div className="mb-6">
-              <h3 className="text-md font-medium text-gray-300 mb-3">Number of Players:</h3>
-              <div className="grid grid-cols-3 gap-3">
-                {[2, 3, 4].map((count) => (
-                  <div
-                    key={count}
-                    className={`border rounded-lg p-3 text-center cursor-pointer transition-all transform hover:scale-105 ${
-                      playerCount === count
-                        ? 'border-blue-400 bg-blue-700 bg-opacity-40 text-white shadow-glow'
-                        : 'border-gray-600 text-gray-300 hover:border-blue-400 hover:text-white'
-                    }`}
-                    onClick={() => handlePlayerCountChange(count)}
-                  >
-                    {count} Players
-                  </div>
-                ))}
+              <h3 className="text-md font-medium text-gray-300 mb-3">Players:</h3>
+              <div className="flex items-center mb-4">
+                <div className="border border-blue-400 bg-blue-700 bg-opacity-40 text-white shadow-glow rounded-lg p-3 text-center w-full">
+                  2 Players Mode
+                </div>
+              </div>
+              
+              {/* Coming Soon Message */}
+              <div className="bg-gray-700 bg-opacity-40 rounded-lg p-4 border border-gray-600">
+                <p className="text-yellow-300 text-sm flex items-center">
+                  <span className="text-lg mr-2">⚠️</span> 
+                  <span className="animate-pulse">Sorry! 3-4 player mode coming soon. Stay tuned for updates!</span>
+                </p>
               </div>
             </div>
             
-            {/* Player Names - Now displayed horizontally in a grid */}
+            {/* Player Names - Now showing fixed names */}
             <div className="mb-8">
-              <h3 className="text-md font-medium text-gray-300 mb-3">Player Names:</h3>
+              <h3 className="text-md font-medium text-gray-300 mb-3">Players:</h3>
               <div className="grid grid-cols-2 gap-4">
-                {Array.from({ length: playerCount }).map((_, index) => (
-                  <div key={index} className="transform transition-all duration-300 hover:translate-y-1">
-                    <div className="flex flex-col">
-                      <label htmlFor={`player${index + 1}`} className="block font-medium text-gray-300 mb-1">
-                        Player {index + 1}:
-                      </label>
-                      <input 
-                        type="text" 
-                        id={`player${index + 1}`} 
-                        className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all"
-                        value={playerNames[index]}
-                        onChange={(e) => handlePlayerNameChange(index, e.target.value)}
-                        placeholder={`Enter name`}
-                      />
-                    </div>
-                  </div>
-                ))}
+                <div className="bg-blue-800 bg-opacity-30 rounded-lg p-4 border border-blue-600 animate-pulse-slow">
+                  <div className="text-2xl mb-2">👤</div>
+                  <div className="font-bold text-white">Player 1</div>
+                </div>
+                <div className="bg-red-800 bg-opacity-30 rounded-lg p-4 border border-red-600 animate-pulse-slow">
+                  <div className="text-2xl mb-2">👤</div>
+                  <div className="font-bold text-white">Player 2</div>
+                </div>
               </div>
             </div>
             
@@ -189,7 +167,7 @@ export default function GameSetup() {
                   className={`border-2 rounded-lg p-4 text-center cursor-pointer transition-all transform hover:scale-105 ${
                     selectedTheme === 'classic' 
                       ? 'border-blue-400 bg-gradient-to-r from-green-600 to-green-400 bg-opacity-30 text-white shadow-glow' 
-                      : 'border-gray- 600 bg-gray-800 text-gray-300 hover:border-blue-400 hover:text-white'
+                      : 'border-gray-600 bg-gray-800 text-gray-300 hover:border-blue-400 hover:text-white'
                   }`}
                   onClick={() => setSelectedTheme('classic')}
                 >
@@ -220,15 +198,15 @@ export default function GameSetup() {
                   <span className="mr-2">✨</span> Twist Mode Includes:
                 </h3>
                 <div className="grid grid-cols-3 gap-3">
-                  <div className="bg-purple-800 bg-opacity-40 p-3 rounded-lg text-center">
+                  <div className="bg-purple-800 bg-opacity-40 p-3 rounded-lg text-center animate-bounce-subtle">
                     <div className="text-xl mb-1">🔙</div>
                     <div className="text-sm font-medium text-white">Push Attack</div>
                   </div>
-                  <div className="bg-blue-800 bg-opacity-40 p-3 rounded-lg text-center">
+                  <div className="bg-blue-800 bg-opacity-40 p-3 rounded-lg text-center animate-bounce-subtle delay-200">
                     <div className="text-xl mb-1">🎲</div>
                     <div className="text-sm font-medium text-white">Double Dice</div>
                   </div>
-                  <div className="bg-pink-800 bg-opacity-40 p-3 rounded-lg text-center">
+                  <div className="bg-pink-800 bg-opacity-40 p-3 rounded-lg text-center animate-bounce-subtle delay-400">
                     <div className="text-xl mb-1">👻</div>
                     <div className="text-sm font-medium text-white">Ghost Mode</div>
                   </div>
